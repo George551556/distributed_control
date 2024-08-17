@@ -61,7 +61,7 @@ func InitMaster(r *gin.Engine) {
 		//模拟控制启动工人节点
 		time.Sleep(6 * time.Second)
 		for key, _ := range connects {
-			if err := goWorkOrNot(key, 8, true); err != nil {
+			if err := goWorkOrNot(key, 2, true); err != nil {
 				log.Println(err)
 				continue
 			}

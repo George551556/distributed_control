@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 /*
@@ -21,9 +22,9 @@ import (
 
 // 声明全局变量
 var (
-	name         string = "worker1"                 //手动编辑
-	ip           string = "http://192.168.1.3:8001" //手动编辑
-	host_address string = "http://192.168.1.3:8000" //手动编辑
+	name         string //手动编辑
+	ip           string //手动编辑
+	host_address string //手动编辑
 	id           string = ""
 	cores        int
 	useCores     int
@@ -47,6 +48,9 @@ func InitWorker(r *gin.Engine) {
 	allCPU = []float64{1, 2, 3, 4}
 	caled_signal = make(chan int, 10)
 	chanStartSig = make(chan int, 2)
+	name = viper.GetString("name")
+	ip = fmt.Sprintf("http://%v:%v", viper.GetString("local_address"), viper.GetInt("local_port"))
+	host_address = fmt.Sprintf("http://%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
 
 	//协程：持续请求连接以及发送心跳
 	go func() {
