@@ -25,21 +25,27 @@ var (
 	host_address string = "http://192.168.1.3:8000" //手动编辑
 	id           string = ""
 	cores        int
+	useCores     int
 	totalCPU     float64
 	allCPU       []float64
-	isConnected  bool = false
-	isWorking    bool = false
+	isConnected  bool     = false
+	isWorking    bool     = false
+	caled_signal chan int     //每进行一个单位的计算则向该通道写入一个 1
+	caledNums    int      = 0 //记录本次开始工作总共的工作量
 )
 
 func InitWorker(r *gin.Engine) {
 	wk := r.Group("/worker")
 	wk.POST("/gowork", goWork)
 
+	//全局变量赋初值
 	cores = 4
+	useCores = 0
 	totalCPU = 51.1
 	allCPU = []float64{1, 2, 3, 4}
+	caled_signal = make(chan int, 10)
 
-	//协程：持续请求连接
+	//协程：持续请求连接以及发送心跳
 	go func() {
 		for {
 			if !isConnected {
@@ -57,6 +63,20 @@ func InitWorker(r *gin.Engine) {
 				}
 				time.Sleep(time.Second)
 			}
+		}
+	}()
+
+	//读通道
+	go func() {
+		for x := range caled_signal {
+			caledNums += x
+		}
+	}()
+
+	go func() {
+		for {
+			caled_signal <- 1
+			time.Sleep(time.Second)
 		}
 	}()
 }
@@ -118,15 +138,17 @@ type heartStatus struct {
 	IsWorking bool      `json:"isworking"`
 	TotalCPU  float64   `json:"totalcpu"`
 	AllCPU    []float64 `json:"allcpu"`
+	CaledNums int       `json:"calednums"`
 }
 
-// 发送心跳状态：本机id，isWorking，CPU状态信息
+// 发送心跳状态：本机id，isWorking，CPU状态信息，已有工作量
 func sendHeartBeat() error {
 	payLoad := heartStatus{
 		Id:        id,
 		IsWorking: isWorking,
 		TotalCPU:  totalCPU,
 		AllCPU:    allCPU,
+		CaledNums: caledNums,
 	}
 	if !isWorking {
 		//若为非工作状态则将CPU信息隐藏
@@ -134,6 +156,7 @@ func sendHeartBeat() error {
 		for i := range payLoad.AllCPU {
 			payLoad.AllCPU[i] = 0
 		}
+		payLoad.CaledNums = 0
 	}
 	jsondata, err := json.Marshal(payLoad)
 	if err != nil {
@@ -173,8 +196,9 @@ func sendHeartBeat() error {
 // Id, flag ：主机要同时发送该机ID用于验证主机身份
 func goWork(c *gin.Context) {
 	var payLoad struct {
-		Id   string `json:"id"`
-		Flag bool   `json:"flag"`
+		Id       string `json:"id"`
+		UseCores int    `json:"usecores"`
+		Flag     bool   `json:"flag"`
 	}
 	if err := c.ShouldBindJSON(&payLoad); err != nil {
 		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
@@ -183,6 +207,8 @@ func goWork(c *gin.Context) {
 		c.JSON(400, gin.H{"status": 400, "msg": "发送的id与本机id不符"})
 	}
 
+	//无错误，准备开始或者停止计算
+	useCores = payLoad.UseCores
 	var msg string
 	if isWorking == payLoad.Flag {
 		if isWorking {
@@ -199,5 +225,6 @@ func goWork(c *gin.Context) {
 		}
 	}
 	log.Println(msg)
+
 	c.JSON(200, gin.H{"status": 200, "msg": msg})
 }

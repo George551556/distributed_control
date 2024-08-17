@@ -28,6 +28,7 @@ type nodeStatus struct {
 	isWorking    bool
 	updated_at   time.Time
 	startWork_at time.Time //记录开始工作的时间点
+	caledNums    int
 }
 
 func InitMaster(r *gin.Engine) {
@@ -51,7 +52,7 @@ func InitMaster(r *gin.Engine) {
 			//模拟控制启动工人节点
 			time.Sleep(4 * time.Second)
 			for key, _ := range connects {
-				if err := goWorkOrNot(key, true); err != nil {
+				if err := goWorkOrNot(key, 1, true); err != nil {
 					log.Println(err)
 					continue
 				}
@@ -113,6 +114,7 @@ func heartBeat(c *gin.Context) {
 		IsWorking bool      `json:"isworking"`
 		TotalCPU  float64   `json:"totalcpu"`
 		AllCPU    []float64 `json:"allcpu"`
+		CaledNums int       `json:"calednums"`
 	}
 	err := c.ShouldBindJSON(&payLoad) //将请求中编码后的json数据解析到payload上
 	if err != nil {
@@ -121,15 +123,12 @@ func heartBeat(c *gin.Context) {
 
 	tempNode, ok := connects[payLoad.Id] // 因为map映射无法直接操作结构体，因此需要用一个temp中转一下
 	if ok {
-		if tempNode.isWorking {
-			tempNode.totalCPU = payLoad.TotalCPU
-			tempNode.allCPU = payLoad.AllCPU
-			tempNode.updated_at = time.Now()
-			connects[payLoad.Id] = tempNode
-		} else {
-			tempNode.updated_at = time.Now()
-			connects[payLoad.Id] = tempNode
-		}
+		tempNode.totalCPU = payLoad.TotalCPU
+		tempNode.allCPU = payLoad.AllCPU
+		tempNode.updated_at = time.Now()
+		tempNode.caledNums = payLoad.CaledNums
+
+		connects[payLoad.Id] = tempNode
 		c.JSON(200, gin.H{"status": 200, "msg": "success"})
 	} else {
 		c.JSON(400, gin.H{"status": 400, "msg": "you have expired...建议重启程序"})
@@ -137,15 +136,17 @@ func heartBeat(c *gin.Context) {
 }
 
 type sendWorkCmd struct {
-	Id   string `json:"id"`
-	Flag bool   `json:"flag"`
+	Id       string `json:"id"`
+	UseCores int    `json:"usecores"`
+	Flag     bool   `json:"flag"`
 }
 
 // http: 根据ID向工人发送开始或停止工作指令
-func goWorkOrNot(id string, flag bool) error {
+func goWorkOrNot(id string, useCores int, flag bool) error {
 	sendworkcmd := sendWorkCmd{
-		Id:   id,
-		Flag: flag,
+		Id:       id,
+		UseCores: useCores,
+		Flag:     flag,
 	}
 	jsonData, err := json.Marshal(sendworkcmd)
 	if err != nil {

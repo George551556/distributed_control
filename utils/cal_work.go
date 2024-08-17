@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -30,7 +31,7 @@ func Multi_cal(core int) {
 					break
 				}
 				if nums%base_time == 0 {
-					fmt.Println(time.Now().Format("2006-01-02 15:05:05"), "*caled..2*10^7")
+					log.Println("*caled..2*10^7")
 					nums = 0
 				}
 			}
