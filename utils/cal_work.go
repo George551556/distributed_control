@@ -26,8 +26,9 @@ func Multi_cal(core int) {
 			nums := 0
 			for {
 				nums++
-				flag := single_cal(r)
+				ret, flag := Single_cal(r)
 				if flag {
+					fmt.Println(ret)
 					break
 				}
 				if nums%base_time == 0 {
@@ -40,17 +41,15 @@ func Multi_cal(core int) {
 	wg.Wait()
 }
 
-func single_cal(r *rand.Rand) bool {
+func Single_cal(r *rand.Rand) (string, bool) {
 	s0 := make([]byte, length)
 	for i := 0; i < length; i++ {
 		s0[i] = charset[r.Int()%len(charset)]
 	}
 	s := string(s0)
-	fmt.Println(s)
 	s1 := Str2md5(s)
 	if s == s1 {
-		fmt.Println(s, "=相等=", s1)
-		return true
+		return s, true
 	}
-	return false
+	return "", false
 }

@@ -16,7 +16,9 @@ import (
 var allWorkerNums int = 0 //记录所有已发现的工人数量
 var workingNums int = 0   //记录正在工作的工人数量
 var connects map[string]nodeStatus
-var expiredTime int = 5 //代表多少秒工人未更新心跳则连接过期
+var expiredTime int = 8 //代表多少秒工人未更新心跳则连接过期
+var finalSuccess bool
+var result []string
 
 type nodeStatus struct {
 	id           string //系统赋予的md5码
@@ -35,8 +37,10 @@ func InitMaster(r *gin.Engine) {
 	mst := r.Group("/master")
 	mst.POST("/getconnect", getConnect)
 	mst.POST("/heartbeat", heartBeat)
+	mst.POST("/sendret", sendRet)
 
 	connects = make(map[string]nodeStatus) //键为工人的id，值为其对应的结构体
+	finalSuccess = false
 
 	go checkHeart()
 
@@ -44,18 +48,34 @@ func InitMaster(r *gin.Engine) {
 		for {
 			time.Sleep(3 * time.Second)
 			log.Println("在线主机数：", allWorkerNums, workingNums)
+			for _, value := range connects {
+				fmt.Println("pow: ", value.name, value.caledNums)
+			}
+			if finalSuccess {
+				fmt.Println(result)
+			}
 		}
 	}()
 
 	go func() {
-		for {
-			//模拟控制启动工人节点
-			time.Sleep(4 * time.Second)
-			for key, _ := range connects {
-				if err := goWorkOrNot(key, 1, true); err != nil {
-					log.Println(err)
-					continue
-				}
+		//模拟控制启动工人节点
+		time.Sleep(6 * time.Second)
+		for key, _ := range connects {
+			if err := goWorkOrNot(key, 8, true); err != nil {
+				log.Println(err)
+				continue
+			}
+		}
+
+	}()
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		fmt.Println("停止所有工作")
+		for key, _ := range connects {
+			if err := goWorkOrNot(key, 0, false); err != nil {
+				log.Println(err)
+				continue
 			}
 		}
 	}()
@@ -102,7 +122,7 @@ func checkHeart() {
 				allWorkerNums--
 			}
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -182,4 +202,31 @@ func goWorkOrNot(id string, useCores int, flag bool) error {
 	connects[id] = tempNode
 
 	return nil
+}
+
+// 路由函数：接收工人发送的md5目标值，同时停止所有工人的工作
+func sendRet(c *gin.Context) {
+	var myLoad struct {
+		Id  string `json:"id"`
+		Ret string `json:"ret"`
+	}
+	if err := c.ShouldBindJSON(&myLoad); err != nil {
+		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
+	}
+	tempNode, ok := connects[myLoad.Id]
+	//停止所有工人的计算工作
+	finalSuccess = true
+	var item_ret string
+	if ok {
+		item_ret = tempNode.name + " caled the result: " + myLoad.Ret
+	} else {
+		item_ret = "未知用户 " + " caled the result: " + myLoad.Ret
+	}
+	result = append(result, item_ret)
+	for key, value := range connects {
+		if err := goWorkOrNot(key, 0, false); err != nil {
+			log.Println(value.name, "stop work ERROR:", err)
+		}
+	}
+	c.JSON(200, gin.H{"status": 200, "msg": "Congratulations !!!"})
 }
