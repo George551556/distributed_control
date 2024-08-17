@@ -6,7 +6,7 @@ import (
 	"math/rand"
 )
 
-var charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+var charsets = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 // 将传入的字符串生成为一个md5码
 func Str2md5(str string) string {
@@ -21,7 +21,7 @@ func Str2md5(str string) string {
 func GetRandom_md5() string {
 	temp := make([]byte, 15)
 	for i := range temp {
-		temp[i] = charset[rand.Int()%len(charset)]
+		temp[i] = charsets[rand.Int()%len(charsets)]
 	}
 	temp_str := string(temp)
 	return Str2md5(temp_str)

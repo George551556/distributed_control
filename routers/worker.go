@@ -2,6 +2,7 @@ package routers
 
 import (
 	"bytes"
+	"dis_control/utils"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,7 +14,7 @@ import (
 )
 
 /*
-工人要有一个变量宣称自己是否处理连接状态，非连接状态每2s进行一次连接请求，连接成功后3s更新一次心跳
+工人要有一个变量宣称自己是否处理连接状态，非连接状态每4s进行一次连接请求，连接成功后3s更新一次心跳
 工人自己要有自己的id，
 */
 
@@ -31,7 +32,9 @@ var (
 )
 
 func InitWorker(r *gin.Engine) {
-	// wk := r.Group("/worker")
+	wk := r.Group("/worker")
+	wk.POST("/gowork", goWork)
+
 	cores = 4
 	totalCPU = 51.1
 	allCPU = []float64{1, 2, 3, 4}
@@ -44,22 +47,18 @@ func InitWorker(r *gin.Engine) {
 				if err != nil {
 					log.Printf("请求连接失败：%v", err)
 				}
-				time.Sleep(2 * time.Second)
+				time.Sleep(4 * time.Second)
 			} else {
+				//获取本机CPU信息
+				totalCPU, allCPU = utils.Get_CPU()
 				//发送heartbeat
-				err := sendHeartBeat()
-				if err != nil {
+				if err := sendHeartBeat(); err != nil {
 					log.Println(err)
 				}
-				time.Sleep(3 * time.Second)
+				time.Sleep(time.Second)
 			}
 		}
 	}()
-}
-
-// 获取本机CPU信息并更新相应变量
-func updateLocalCPU() {
-
 }
 
 type sendLoad struct { //发送数据的类型
@@ -110,6 +109,7 @@ func connect_host() error {
 
 	id = payLoad.Msg //赋值本机id
 	isConnected = true
+	log.Println("连接主机成功")
 	return nil
 }
 
@@ -128,13 +128,13 @@ func sendHeartBeat() error {
 		TotalCPU:  totalCPU,
 		AllCPU:    allCPU,
 	}
-	// if !isWorking {
-	// 	//若为非工作状态则将CPU信息隐藏
-	// 	payLoad.TotalCPU = 0
-	// 	for i := range payLoad.AllCPU {
-	// 		payLoad.AllCPU[i] = 0
-	// 	}
-	// }
+	if !isWorking {
+		//若为非工作状态则将CPU信息隐藏
+		payLoad.TotalCPU = 0
+		for i := range payLoad.AllCPU {
+			payLoad.AllCPU[i] = 0
+		}
+	}
 	jsondata, err := json.Marshal(payLoad)
 	if err != nil {
 		return err
@@ -165,5 +165,39 @@ func sendHeartBeat() error {
 	if responseData.Status != 200 {
 		return fmt.Errorf("resp status not 200: %v", responseData.Msg)
 	}
+	log.Println("send heartBeat success")
 	return nil
+}
+
+// 路由函数：由主机唤醒或停止本机的工作状态
+// Id, flag ：主机要同时发送该机ID用于验证主机身份
+func goWork(c *gin.Context) {
+	var payLoad struct {
+		Id   string `json:"id"`
+		Flag bool   `json:"flag"`
+	}
+	if err := c.ShouldBindJSON(&payLoad); err != nil {
+		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
+	}
+	if payLoad.Id != id {
+		c.JSON(400, gin.H{"status": 400, "msg": "发送的id与本机id不符"})
+	}
+
+	var msg string
+	if isWorking == payLoad.Flag {
+		if isWorking {
+			msg = "is still working..."
+		} else {
+			msg = "is still sleeping..."
+		}
+	} else {
+		isWorking = payLoad.Flag
+		if isWorking {
+			msg = "success: start work!!!"
+		} else {
+			msg = "success: stop work!!!"
+		}
+	}
+	log.Println(msg)
+	c.JSON(200, gin.H{"status": 200, "msg": msg})
 }
