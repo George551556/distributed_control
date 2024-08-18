@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gowork.html</title>
+<style>
+  .working {
+    background-color: #ffcccc;
+  }
+  .disabled {
+    pointer-events: none;
+  }
+  .tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black;
+  }
+  .tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    bottom: 150%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+<div id="main-content">
+  <div id="result"></div>
+  <div id="date-time"></div>
+  选择运行核数：
+  <select id="core-selector">
+    <!-- Options for core-selector will be populated in JavaScript -->
+  </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <button>全单核运行</button>
+  <button>全满载运行</button>
+  <hr>
+  <hr>
+  <hr>
+  <div id="data-render"></div>
+</div>
+<script>
+// Function to render data
+function renderData(data) {
+  const dataRender = document.getElementById('data-render');
+  dataRender.innerHTML = ''; // Clear previous content
+  data.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'tooltip';
+    row.innerHTML = `
+      <span>${item.name}</span> |
+      <span>${(item.totalCPU * 100).toFixed(2)}%</span> |
+      <span>${item.cores} cores</span> |
+      <span>${item.isWorking ? '工作中' : '休息'}</span> |
+      <span>${item.startWork_at}</span> |
+      <span>工作量：${item.caledNums} 次</span>
+      <button onclick="startWorkOrNot('${item.id}', this, true)">开始工作</button>
+      <button onclick="startWorkOrNot('${item.id}', this, false)">停止工作</button>
+      <span class="tooltiptext">${item.id}<br>${item.allCPU.join(', ')}</span>
+    `;
+    dataRender.appendChild(row);
+  });
+}
+
+// Populate core-selector
+function populateCoreSelector() {
+  const selector = document.getElementById('core-selector');
+  for (let i = 1; i <= 1024; i++) {
+    const option = document.createElement('option');
+    option.value = i;
+    option.textContent = i;
+    selector.appendChild(option);
+  }
+}
+
+// Function to handle start/stop work
+function startWorkOrNot(id, button, isWorking) {
+    const formData = new FormData();
+    const coreValue = document.getElementById('core-selector').value;
+    // const workData = { id, cores: coreValue, isWorking };
+    formData.append('usecores', coreValue);
+    formData.append('id', id);
+    formData.append('isworking', isWorking);
+
+    fetch('/front/goworkornot', {
+        method: 'POST',
+        // headers: {
+        // 'Content-Type': 'application/json',
+        // },
+        body: formData,
+    })
+    .then(response => {
+        if (response.status === 200) {
+            window.location.reload();
+        } else {
+            console.error('goWorkOrNot not 200 Error:', response.status);
+        }
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
+
+    // Disable the button to prevent multiple submissions
+    button.disabled = true;
+}
+
+// Function to initialize the page and fetch data
+function initPage() {
+  fetch('/front/getmaindata')
+    .then(response => response.json())
+    .then(data => {
+        // console.log('lkz:', data.data)
+        document.getElementById('date-time').textContent = data['date-time'] +'---| |---  '+'工作人数/总数：'+ data['working']+'/'+data['worker'];
+        const finalSuccess = data['finalsuccess'];
+        const result = data['result'];
+
+        if (finalSuccess) {
+            document.body.style.backgroundColor = 'red';
+            document.body.classList.add('disabled');
+            document.getElementById('result').textContent = result.join(', ');
+        }
+
+        renderData(data['data']);
+    })
+    .catch(error => {
+      console.error('Error fetching data:', error);
+    });
+}
+
+// Call initPage on page load
+initPage();
+populateCoreSelector();
+console.log('end...')
+</script>
+</body>
+</html>

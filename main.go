@@ -37,10 +37,11 @@ func main() {
 	r.LoadHTMLGlob("templates/*")
 
 	//路由初始化
-	r.GET("/lt", littleTest)
+	r.GET("/", littleTest)
 	if nodeType == 0 {
 		log.Println("以主节点身份启动")
 		routers.InitMaster(r)
+		routers.InitFront(r)
 		r.Run(fmt.Sprintf(":%v", host_port))
 	} else {
 		log.Println("默认以工人节点身份启动")

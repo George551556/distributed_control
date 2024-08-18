@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,16 +22,16 @@ var finalSuccess bool
 var result []string
 
 type nodeStatus struct {
-	id           string //系统赋予的md5码
-	name         string //给人看的描述信息
-	ip           string
-	cores        int
-	totalCPU     float64
-	allCPU       []float64
-	isWorking    bool
-	updated_at   time.Time
-	startWork_at time.Time //记录开始工作的时间点
-	caledNums    int
+	ID          string    `json:"id"` // 使用json标签来指定序列化后的字段名
+	Name        string    `json:"name"`
+	IP          string    `json:"ip"`
+	Cores       int       `json:"cores"`
+	TotalCPU    float64   `json:"totalCPU"`
+	AllCPU      []float64 `json:"allCPU"`
+	IsWorking   bool      `json:"isWorking"`
+	UpdatedAt   time.Time `json:"updated_at"` // 时间字段通常可以自动序列化为ISO 8601格式
+	StartWorkAt time.Time `json:"startWork_at"`
+	CaledNums   int       `json:"caledNums"`
 }
 
 func InitMaster(r *gin.Engine) {
@@ -43,42 +44,6 @@ func InitMaster(r *gin.Engine) {
 	finalSuccess = false
 
 	go checkHeart()
-
-	go func() {
-		for {
-			time.Sleep(3 * time.Second)
-			log.Println("在线主机数：", allWorkerNums, workingNums)
-			for _, value := range connects {
-				fmt.Println("pow: ", value.name, value.caledNums)
-			}
-			if finalSuccess {
-				fmt.Println(result)
-			}
-		}
-	}()
-
-	go func() {
-		//模拟控制启动工人节点
-		time.Sleep(6 * time.Second)
-		for key, _ := range connects {
-			if err := goWorkOrNot(key, 2, true); err != nil {
-				log.Println(err)
-				continue
-			}
-		}
-
-	}()
-
-	go func() {
-		time.Sleep(30 * time.Second)
-		fmt.Println("停止所有工作")
-		for key, _ := range connects {
-			if err := goWorkOrNot(key, 0, false); err != nil {
-				log.Println(err)
-				continue
-			}
-		}
-	}()
 }
 
 // 路由函数：接收来自工人节点的连接请求并建立连接
@@ -96,31 +61,40 @@ func getConnect(c *gin.Context) {
 
 	id := utils.GetRandom_md5()
 	newNode := nodeStatus{
-		id:         id,
-		name:       payLoad.Name,
-		ip:         payLoad.Ip,
-		cores:      payLoad.Cores,
-		totalCPU:   0.00,
-		allCPU:     make([]float64, payLoad.Cores),
-		isWorking:  false,
-		updated_at: time.Now(),
+		ID:        id,
+		Name:      payLoad.Name,
+		IP:        payLoad.Ip,
+		Cores:     payLoad.Cores,
+		TotalCPU:  0.00,
+		AllCPU:    make([]float64, payLoad.Cores),
+		IsWorking: false,
+		UpdatedAt: time.Now(),
 	}
 	connects[id] = newNode
 	allWorkerNums++
-	log.Printf("工人 %v 加入{\n id   : %v\n ip   : %v\n cores: %v\n}", newNode.name, newNode.id, newNode.ip, newNode.cores)
+	log.Printf("工人 %v 加入{\n id   : %v\n ip   : %v\n cores: %v\n}", newNode.Name, newNode.ID, newNode.IP, newNode.Cores)
 	c.JSON(200, gin.H{"status": 200, "msg": id})
 }
 
-// 协程：持续检查每个节点的updated_at时间，若超过指定时间则删除其对应的连接
+// 协程：持续检查每个节点的updated_at时间，若超过指定时间则删除其对应的连接。并更新工作节点数
 func checkHeart() {
 	for {
+		tempWorking := 0
 		for key, value := range connects {
-			diff := time.Since(value.updated_at)
+			diff := time.Since(value.UpdatedAt)
 			if diff >= time.Duration(expiredTime)*time.Second {
 				delete(connects, key)
-				log.Printf("工人 %v 下线\n", value.name)
+				log.Printf("工人 %v 下线\n", value.Name)
 				allWorkerNums--
 			}
+			if value.IsWorking {
+				tempWorking++
+			}
+		}
+		workingNums = tempWorking
+
+		if finalSuccess {
+			log.Printf("!!!! This is result [%v] !!!:", result)
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -143,10 +117,10 @@ func heartBeat(c *gin.Context) {
 
 	tempNode, ok := connects[payLoad.Id] // 因为map映射无法直接操作结构体，因此需要用一个temp中转一下
 	if ok {
-		tempNode.totalCPU = payLoad.TotalCPU
-		tempNode.allCPU = payLoad.AllCPU
-		tempNode.updated_at = time.Now()
-		tempNode.caledNums = payLoad.CaledNums
+		tempNode.TotalCPU = payLoad.TotalCPU
+		tempNode.AllCPU = payLoad.AllCPU
+		tempNode.UpdatedAt = time.Now()
+		tempNode.CaledNums = payLoad.CaledNums
 
 		connects[payLoad.Id] = tempNode
 		c.JSON(200, gin.H{"status": 200, "msg": "success"})
@@ -162,7 +136,7 @@ type sendWorkCmd struct {
 }
 
 // http: 根据ID向工人发送开始或停止工作指令
-func goWorkOrNot(id string, useCores int, flag bool) error {
+func GoWorkOrNot(id string, useCores int, flag bool) error {
 	sendworkcmd := sendWorkCmd{
 		Id:       id,
 		UseCores: useCores,
@@ -172,7 +146,7 @@ func goWorkOrNot(id string, useCores int, flag bool) error {
 	if err != nil {
 		return err
 	}
-	url := connects[id].ip + "/worker/gowork"
+	url := connects[id].IP + "/worker/gowork"
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
@@ -197,8 +171,8 @@ func goWorkOrNot(id string, useCores int, flag bool) error {
 	fmt.Println(respLoad.Msg)
 	//修改本地保存的该工人状态
 	tempNode := connects[id]
-	tempNode.isWorking = flag
-	tempNode.startWork_at = time.Now()
+	tempNode.IsWorking = flag
+	tempNode.StartWorkAt = time.Now()
 	connects[id] = tempNode
 
 	return nil
@@ -218,15 +192,29 @@ func sendRet(c *gin.Context) {
 	finalSuccess = true
 	var item_ret string
 	if ok {
-		item_ret = tempNode.name + " caled the result: " + myLoad.Ret
+		item_ret = tempNode.Name + " !!!!!!!!!!!caled the result: " + myLoad.Ret
 	} else {
-		item_ret = "未知用户 " + " caled the result: " + myLoad.Ret
+		item_ret = "未知用户 " + " !!!!!!!!!!!caled the result: " + myLoad.Ret
 	}
 	result = append(result, item_ret)
 	for key, value := range connects {
-		if err := goWorkOrNot(key, 0, false); err != nil {
-			log.Println(value.name, "stop work ERROR:", err)
+		if err := GoWorkOrNot(key, 0, false); err != nil {
+			log.Println(value.Name, "stop work ERROR:", err)
 		}
 	}
 	c.JSON(200, gin.H{"status": 200, "msg": "Congratulations !!!"})
+}
+
+// 辅助函数：向前端接口返回切片形式的已连接节点信息
+func GetMainData() (int, int, bool, []string, []nodeStatus) {
+	var mySlc []nodeStatus
+	for _, value := range connects {
+		mySlc = append(mySlc, value)
+	}
+	//对切片按isWorking排序
+	sort.Slice(mySlc, func(i int, j int) bool {
+		return mySlc[i].IsWorking && !mySlc[j].IsWorking
+	})
+
+	return allWorkerNums, workingNums, finalSuccess, result, mySlc
 }

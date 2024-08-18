@@ -3,9 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Not Found</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .error-container {
+            text-align: center;
+        }
+        .error-code {
+            color: black;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .error-message {
+            color: #666;
+            font-size: 16px;
+        }
+        .error-decoration {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: #007bff;
+        }
+    </style>
 </head>
 <body>
-    hello{{.msg}}
+    <div class="error-decoration"></div>
+    <div class="error-container">
+        <div class="error-code">Not Found</div>
+        <div class="error-message">HTTP Error 404. The requested resource is not found.</div>
+    </div>
 </body>
 </html>
