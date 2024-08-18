@@ -46,10 +46,13 @@
   <select id="core-selector">
     <!-- Options for core-selector will be populated in JavaScript -->
   </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <button>全单核运行</button>
-  <button>全满载运行</button>
+  <button onclick="batchControl(1)">全单核运行</button>
+  <button onclick="batchControl(2)">全满载运行</button>
+  <button onclick="batchControl(0)">全部停止</button>
   <hr>
+  <br>
   <hr>
+  <br>
   <hr>
   <div id="data-render"></div>
 </div>
@@ -76,6 +79,26 @@ function renderData(data) {
   });
 }
 
+function batchControl(slt){
+    // slt = 0 1 2
+    const formData = new FormData();
+    formData.append('slt', slt);
+    fetch('/front/batchctrl', {
+        method:'post',
+        body:formData,
+    })
+    .then(response =>{
+        if (response.status === 200) {
+            window.location.reload();
+        } else {
+            console.error('batchControl not 200 Error:', response.status);
+        }
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
+}
+
 // Populate core-selector
 function populateCoreSelector() {
   const selector = document.getElementById('core-selector');
@@ -91,16 +114,12 @@ function populateCoreSelector() {
 function startWorkOrNot(id, button, isWorking) {
     const formData = new FormData();
     const coreValue = document.getElementById('core-selector').value;
-    // const workData = { id, cores: coreValue, isWorking };
     formData.append('usecores', coreValue);
     formData.append('id', id);
     formData.append('isworking', isWorking);
 
     fetch('/front/goworkornot', {
         method: 'POST',
-        // headers: {
-        // 'Content-Type': 'application/json',
-        // },
         body: formData,
     })
     .then(response => {

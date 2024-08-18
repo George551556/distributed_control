@@ -218,3 +218,30 @@ func GetMainData() (int, int, bool, []string, []nodeStatus) {
 
 	return allWorkerNums, workingNums, finalSuccess, result, mySlc
 }
+
+// 辅助函数：根据参数slt，批量操作所有工作节点
+func Mst_batchCtrl(slt int) error {
+	if slt == 0 {
+		for key, _ := range connects {
+			if err := GoWorkOrNot(key, 0, false); err != nil {
+				return err
+			}
+		}
+	} else if slt == 1 {
+		for key, _ := range connects {
+			if err := GoWorkOrNot(key, 1, true); err != nil {
+				return err
+			}
+		}
+	} else if slt == 2 {
+		for key, value := range connects {
+			fullCore := value.Cores
+			if err := GoWorkOrNot(key, fullCore, true); err != nil {
+				return err
+			}
+		}
+	} else {
+		return fmt.Errorf("slt参数数值不合法")
+	}
+	return nil
+}

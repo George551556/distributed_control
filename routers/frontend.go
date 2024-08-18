@@ -17,6 +17,7 @@ func InitFront(r *gin.Engine) {
 	front.GET("/gowork", index)
 	front.GET("/getmaindata", returnData)
 	front.POST("/goworkornot", frt_gowork)
+	front.POST("/batchctrl", batchControl)
 
 }
 
@@ -66,5 +67,19 @@ func frt_gowork(c *gin.Context) {
 		c.JSON(400, gin.H{"msg": "3452error"})
 	}
 
+	c.JSON(200, gin.H{})
+}
+
+// 路由函数：批量启动或停止所有的工作节点
+func batchControl(c *gin.Context) {
+	temp_slt := c.PostForm("slt")
+	slt, err := strconv.Atoi(temp_slt)
+	if err != nil {
+		log.Println(err)
+		c.JSON(400, gin.H{"msg": "wrong usecores type"})
+	}
+	if err := Mst_batchCtrl(slt); err != nil {
+		c.JSON(400, gin.H{"msg": err.Error()})
+	}
 	c.JSON(200, gin.H{})
 }
