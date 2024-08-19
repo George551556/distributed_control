@@ -222,13 +222,13 @@ func GetMainData() (int, int, bool, []string, []nodeStatus) {
 // 辅助函数：根据参数slt，批量操作所有工作节点
 func Mst_batchCtrl(slt int) error {
 	if slt == 0 {
-		for key, _ := range connects {
+		for key := range connects {
 			if err := GoWorkOrNot(key, 0, false); err != nil {
 				return err
 			}
 		}
 	} else if slt == 1 {
-		for key, _ := range connects {
+		for key := range connects {
 			if err := GoWorkOrNot(key, 1, true); err != nil {
 				return err
 			}

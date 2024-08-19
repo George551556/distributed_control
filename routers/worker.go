@@ -22,9 +22,9 @@ import (
 
 // 声明全局变量
 var (
-	name         string //手动编辑
-	ip           string //手动编辑
-	host_address string //手动编辑
+	name         string
+	ip           string
+	host_address string
 	id           string = ""
 	cores        int
 	useCores     int
@@ -33,7 +33,7 @@ var (
 	isConnected  bool     = false
 	isWorking    bool     = false
 	caled_signal chan int     //每进行一个单位的计算则向该通道写入一个 1
-	caledNums    int      = 0 //记录本次开始工作总共的工作量
+	caledNums    int      = 0 //记录本次开始工作总共的工作量，停止工作则清零
 	chanStartSig chan int     //每次开始工作时，向该通道写入一个1，防止对isWorking变量的重复读取
 )
 
@@ -51,6 +51,7 @@ func InitWorker(r *gin.Engine) {
 	name = viper.GetString("name")
 	ip = fmt.Sprintf("http://%v:%v", viper.GetString("local_address"), viper.GetInt("local_port"))
 	host_address = fmt.Sprintf("http://%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
+	cores = viper.GetInt("cores")
 
 	//协程：持续请求连接以及发送心跳
 	go func() {
@@ -79,13 +80,6 @@ func InitWorker(r *gin.Engine) {
 			caledNums += x
 		}
 	}()
-
-	// go func() {
-	// 	for {
-	// 		caled_signal <- 1
-	// 		time.Sleep(time.Second)
-	// 	}
-	// }()
 
 	//进行md5计算的主要协程，由管道来控制主死循环的执行与停止
 	go func() {

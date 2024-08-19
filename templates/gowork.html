@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>gowork.html</title>
 <style>
+  body{
+    background-color: #f0f0f0;
+  }
   .working {
     background-color: #ffcccc;
   }
@@ -48,8 +51,8 @@
   </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <button onclick="batchControl(1)">全单核运行</button>
   <button onclick="batchControl(2)">全满载运行</button>
-  <button onclick="batchControl(0)">全部停止</button>
-  <button onclick="initPage()">刷新</button>
+  <button onclick="batchControl(0)" style="background-color: red;">全部停止</button>
+  <button onclick="initPage()" style="background-color: green;">刷新</button>
   <hr>
   <br>
   <hr>
