@@ -5,7 +5,7 @@ import (
 	"dis_control/utils"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -148,7 +148,7 @@ func connect_host() error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,7 @@ func sendHeartBeat() error {
 	defer resp.Body.Close()
 
 	// 读取响应体
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func sendRetMD5(ret string) error {
 		return err
 	}
 	resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

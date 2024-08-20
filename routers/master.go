@@ -5,7 +5,7 @@ import (
 	"dis_control/utils"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"sort"
@@ -152,7 +152,7 @@ func GoWorkOrNot(id string, useCores int, flag bool) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
