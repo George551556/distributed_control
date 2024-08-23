@@ -80,6 +80,8 @@ function renderData(data) {
       <span class="tooltiptext">${item.id}<br>${item.allCPU.join(', ')}</span>
     `;
     dataRender.appendChild(row);
+    const br = document.createElement('br');
+    dataRender.appendChild(br);
   });
 }
 
