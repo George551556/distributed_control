@@ -12,14 +12,22 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
-var allWorkerNums int = 0 //记录所有已发现的工人数量
-var workingNums int = 0   //记录正在工作的工人数量
-var connects map[string]nodeStatus
-var expiredTime int = 8 //代表多少秒工人未更新心跳则连接过期
-var finalSuccess bool
+var allWorkerNums int = 0                      //记录所有已发现的工人数量
+var workingNums int = 0                        //记录正在工作的工人数量
+var connects = make(map[string]nodeStatus)     //键为工人的id，值为其对应的结构体信息
+var wsConns = make(map[string]*websocket.Conn) //键为工人的id，值为其对应的webSocket连接对象
+var expiredTime int = 8                        //代表多少秒工人未更新心跳则连接过期
+var finalSuccess bool = false
 var result []string
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // 允许跨域请求
+	},
+}
 
 type nodeStatus struct {
 	ID          string    `json:"id"` // 使用json标签来指定序列化后的字段名
@@ -40,8 +48,7 @@ func InitMaster(r *gin.Engine) {
 	mst.POST("/heartbeat", heartBeat)
 	mst.POST("/sendret", sendRet)
 
-	connects = make(map[string]nodeStatus) //键为工人的id，值为其对应的结构体
-	finalSuccess = false
+	// connects = make(map[string]nodeStatus)
 
 	go checkHeart()
 }

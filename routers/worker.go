@@ -1,17 +1,16 @@
 package routers
 
 import (
-	"bytes"
 	"dis_control/utils"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/spf13/viper"
 )
 
@@ -25,22 +24,40 @@ var (
 	name         string
 	ip           string
 	host_address string
+	host         string
 	id           string = ""
 	cores        int
 	useCores     int
 	totalCPU     float64
 	allCPU       []float64
-	isConnected  bool     = false
+	isConnected  bool = false
+	conn         *websocket.Conn
+	u            url.URL
 	isWorking    bool     = false
 	caled_signal chan int     //每进行一个单位的计算则向该通道写入一个 1
 	caledNums    int      = 0 //记录本次开始工作总共的工作量，停止工作则清零
 	chanStartSig chan int     //每次开始工作时，向该通道写入一个1，防止对isWorking变量的重复读取
 )
 
-func InitWorker(r *gin.Engine) {
-	wk := r.Group("/worker")
-	wk.POST("/gowork", goWork)
+var dialer = websocket.Dialer{
+	Proxy: http.ProxyFromEnvironment,
+}
 
+// socket通信的消息载体
+type WsMessage struct {
+	Type        int       `json:"type"`
+	Name        string    `json:"name"`
+	Cores       int       `json:"cores"`
+	TotalCPU    float64   `json:"totalcpu"`
+	AllCPU      []float64 `json:"allcpu"`
+	IsWorking   bool      `json:"isworking"`
+	UseCores    int       `json:"usecores"`
+	StartWorkAt time.Time `json:"startwork_at"`
+	CaledNums   int       `json:"calednums"`
+	Result      string    `json:"result"`
+}
+
+func InitWorker() {
 	//全局变量赋初值
 	cores = 4
 	useCores = 0
@@ -51,23 +68,25 @@ func InitWorker(r *gin.Engine) {
 	name = viper.GetString("name")
 	ip = fmt.Sprintf("http://%v:%v", viper.GetString("local_address"), viper.GetInt("local_port"))
 	host_address = fmt.Sprintf("http://%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
+	host = fmt.Sprintf("%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
+	u = url.URL{Scheme: "ws", Host: host, Path: "/front/ws"}
 	cores = viper.GetInt("cores")
 
 	//协程：持续请求连接以及发送心跳
 	go func() {
 		for {
 			if !isConnected {
-				err := connect_host()
-				if err != nil {
-					log.Printf("请求连接失败：%v", err)
+				if connect_host() {
+					break
 				}
 				time.Sleep(4 * time.Second)
 			} else {
 				//获取本机CPU信息
 				totalCPU, allCPU = utils.Get_CPU()
 				//发送heartbeat
-				if err := sendHeartBeat(); err != nil {
-					log.Println(err)
+				if !sendHeartBeat() {
+					conn.Close()
+					isConnected = false
 				}
 				time.Sleep(time.Second)
 			}
@@ -98,6 +117,7 @@ func InitWorker(r *gin.Engine) {
 						if flag {
 							//向主机发送消息，自己计算出了目标值
 							sendRetMD5(ret)
+							isWorking = false
 							break
 						}
 						if !isWorking {
@@ -114,146 +134,83 @@ func InitWorker(r *gin.Engine) {
 			}
 		}
 	}()
-}
 
-type sendLoad struct { //发送数据的类型
-	Name  string `json:"name"`
-	Ip    string `json:"ip"`
-	Cores int    `json:"cores"`
+	//从socket中循环读取消息
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Println("读取消息失败: ", err)
+			conn.Close()
+			isConnected = false
+		}
+		// fmt.Println(string(message))
+		//处理收到的消息
+		var msg WsMessage
+		if err := json.Unmarshal(message, &msg); err != nil {
+			log.Println("消息解码错误: ", err)
+		}
+		goWork(msg.IsWorking, msg.UseCores)
+	}
 }
 
 // 请求一次连接
-func connect_host() error {
-	var payLoad struct { //对应接口返回的类型
-		Status int    `json:"status"`
-		Msg    string `json:"msg"` //对应返回的节点ID
-	}
-
-	url := host_address + "/master/getconnect"
-	//构建post请求的数据
-	sendload := sendLoad{
-		Name:  name,
-		Ip:    ip,
-		Cores: cores,
-	}
-
-	// 将数据转换为JSON格式
-	jsonData, err := json.Marshal(sendload)
+func connect_host() bool {
+	var err error
+	conn, _, err = dialer.Dial(u.String(), nil)
 	if err != nil {
-		return err
+		log.Println("ws连接失败：", err)
+		return false
 	}
-	// 创建HTTP客户端并发送请求
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	//解析响应数据到payLoad结构体中
-	err = json.Unmarshal(body, &payLoad)
-	if err != nil {
-		return err
-	}
-
-	if payLoad.Status != 200 {
-		return fmt.Errorf("server returned non-200 status: %d %s", payLoad.Status, payLoad.Msg)
-	}
-
-	id = payLoad.Msg //赋值本机id
+	log.Println("连接成功！！！")
 	isConnected = true
-	log.Println("连接主机成功")
-	return nil
+	return true
 }
 
-type heartStatus struct {
-	Id        string    `json:"id"`
-	IsWorking bool      `json:"isworking"`
-	TotalCPU  float64   `json:"totalcpu"`
-	AllCPU    []float64 `json:"allcpu"`
-	CaledNums int       `json:"calednums"`
-}
-
-// 发送心跳状态：本机id，isWorking，CPU状态信息，已有工作量
-func sendHeartBeat() error {
-	payLoad := heartStatus{
-		Id:        id,
-		IsWorking: isWorking,
+// 发送心跳状态：名称，isWorking，CPU状态信息，已有工作量
+func sendHeartBeat() bool {
+	msg := WsMessage{
+		Type:      1,
+		Name:      name,
+		Cores:     cores,
 		TotalCPU:  totalCPU,
 		AllCPU:    allCPU,
 		CaledNums: caledNums,
 	}
 	if !isWorking {
 		//若为非工作状态则将CPU信息隐藏
-		payLoad.TotalCPU = 0
-		for i := range payLoad.AllCPU {
-			payLoad.AllCPU[i] = 0
+		msg.TotalCPU = 0
+		for i := range msg.AllCPU {
+			msg.AllCPU[i] = 0
 		}
-		payLoad.CaledNums = 0
+		msg.CaledNums = 0
 	}
-	jsondata, err := json.Marshal(payLoad)
+	jsonData, err := json.Marshal(msg)
 	if err != nil {
-		return err
+		log.Println("消息序列化失败: ", err)
+		return false
 	}
-	// 创建 HTTP 客户端并发送请求
-	url := host_address + "/master/heartbeat"
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsondata))
-	if err != nil {
-		isConnected = false //如果发送请求失败，则可能主机下线，因此取消连接状态，重新进行连接
-		return err
+	// 发送消息
+	if err := conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+		log.Println("发送失败：", err)
+		return false
 	}
-	defer resp.Body.Close()
-
-	// 读取响应体
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// 解析返回的 JSON 数据
-	var responseData struct {
-		Status int    `json:"status"`
-		Msg    string `json:"msg"`
-	}
-	if err := json.Unmarshal(body, &responseData); err != nil {
-		// fmt.Println("lkjlkajs")
-		return err
-	}
-	if responseData.Status != 200 {
-		return fmt.Errorf("resp status not 200: %v", responseData.Msg)
-	}
-	log.Println("send heartBeat success")
-	return nil
+	return true
 }
 
-// 路由函数：由主机唤醒或停止本机的工作状态
-// Id, flag ：主机要同时发送该机ID用于验证主机身份
-func goWork(c *gin.Context) {
-	var payLoad struct {
-		Id       string `json:"id"`
-		UseCores int    `json:"usecores"`
-		Flag     bool   `json:"flag"`
-	}
-	if err := c.ShouldBindJSON(&payLoad); err != nil {
-		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
-	}
-	if payLoad.Id != id {
-		c.JSON(400, gin.H{"status": 400, "msg": "发送的id与本机id不符"})
-	}
-
-	//无错误，准备开始或者停止计算
-	useCores = payLoad.UseCores
+// 由主机唤醒或停止本机的工作状态
+// 参数：开始或停止工作的指令，使用核数
+func goWork(shouldWork bool, shouldUseCores int) {
+	//准备开始或者停止计算
+	useCores = shouldUseCores
 	var msg string
-	if isWorking == payLoad.Flag {
+	if isWorking == shouldWork {
 		if isWorking {
 			msg = "is still working..."
 		} else {
 			msg = "is still sleeping..."
 		}
 	} else {
-		isWorking = payLoad.Flag
+		isWorking = shouldWork
 		if isWorking {
 			msg = "success: start work!!!"
 			chanStartSig <- 1
@@ -264,46 +221,22 @@ func goWork(c *gin.Context) {
 	}
 	log.Println(msg)
 
-	c.JSON(200, gin.H{"status": 200, "msg": msg})
-}
-
-type retMD5Load struct {
-	Id  string `json:"id"`
-	Ret string `json:"ret"`
 }
 
 // http函数，向主机发送自己计算获得的目标值
-func sendRetMD5(ret string) error {
-	myLoad := retMD5Load{
-		Id:  id,
-		Ret: ret,
+func sendRetMD5(ret string) bool {
+	msg := WsMessage{
+		Type:   2,
+		Result: ret,
 	}
-	jsonData, err := json.Marshal(myLoad)
+	jsonData, err := json.Marshal(msg)
 	if err != nil {
-		return err
+		log.Println("消息编码失败：", err)
+		return false
 	}
-	url := host_address + "/master/sendret"
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
+	if err := conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+		log.Println("发送失败：", err)
+		return false
 	}
-	resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// 解析返回的 JSON 数据
-	var responseData struct {
-		Status int    `json:"status"`
-		Msg    string `json:"msg"`
-	}
-	if err := json.Unmarshal(body, &responseData); err != nil {
-		return err
-	}
-	if responseData.Status != 200 {
-		return fmt.Errorf("resp status not 200: %v", responseData.Msg)
-	}
-	log.Println(responseData.Msg, "I caled ret:", ret)
-	return nil
+	return true
 }

@@ -31,25 +31,22 @@ func main() {
 		log.Fatal(err)
 	}
 	host_port := viper.GetInt("host_port")
-	local_port := viper.GetInt("local_port")
 
 	r := gin.Default()
 
 	//路由初始化
-	r.GET("/", littleTest)
 	if nodeType == 0 {
 		log.Println("以主节点身份启动")
 		r.LoadHTMLGlob("templates/*")
+		r.GET("/", littleTest)
 		routers.InitMaster(r)
 		routers.InitFront(r)
 		r.Run(fmt.Sprintf(":%v", host_port))
 	} else {
 		log.Println("默认以工人节点身份启动")
-		routers.InitWorker(r)
-		r.Run(fmt.Sprintf(":%v", local_port))
+		routers.InitWorker()
 	}
 
-	// r.Run(":8000")
 }
 
 func littleTest(c *gin.Context) {
