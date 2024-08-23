@@ -34,12 +34,12 @@ func main() {
 	local_port := viper.GetInt("local_port")
 
 	r := gin.Default()
-	r.LoadHTMLGlob("templates/*")
 
 	//路由初始化
 	r.GET("/", littleTest)
 	if nodeType == 0 {
 		log.Println("以主节点身份启动")
+		r.LoadHTMLGlob("templates/*")
 		routers.InitMaster(r)
 		routers.InitFront(r)
 		r.Run(fmt.Sprintf(":%v", host_port))
