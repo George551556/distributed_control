@@ -69,21 +69,18 @@ func InitWorker() {
 	ip = fmt.Sprintf("http://%v:%v", viper.GetString("local_address"), viper.GetInt("local_port"))
 	host_address = fmt.Sprintf("http://%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
 	host = fmt.Sprintf("%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
-	u = url.URL{Scheme: "ws", Host: host, Path: "/front/ws"}
+	u = url.URL{Scheme: "ws", Host: host, Path: "/master/myws"}
 	cores = viper.GetInt("cores")
 
 	//协程：持续请求连接以及发送心跳
 	go func() {
 		for {
 			if !isConnected {
-				if connect_host() {
-					break
-				}
+				connect_host()
 				time.Sleep(4 * time.Second)
 			} else {
-				//获取本机CPU信息
+				//获取本机CPU信息，发送heartbeat
 				totalCPU, allCPU = utils.Get_CPU()
-				//发送heartbeat
 				if !sendHeartBeat() {
 					conn.Close()
 					isConnected = false
@@ -114,6 +111,11 @@ func InitWorker() {
 					for {
 						nums++
 						ret, flag := utils.Single_cal(r)
+						if nums == 20000000-1000000 {
+							flag = true
+							ret = "hahah just kidding!!!"
+							fmt.Printf("ret: %v\n", ret)
+						}
 						if flag {
 							//向主机发送消息，自己计算出了目标值
 							sendRetMD5(ret)
@@ -137,19 +139,26 @@ func InitWorker() {
 
 	//从socket中循环读取消息
 	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("读取消息失败: ", err)
-			conn.Close()
-			isConnected = false
+		if isConnected {
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				log.Println("读取消息失败: ", err)
+				conn.Close()
+				isConnected = false
+			}
+			// fmt.Println(string(message))
+			//处理收到的消息
+			var msg WsMessage
+			if err := json.Unmarshal(message, &msg); err != nil {
+				log.Println("消息解码错误: ", err)
+			}
+			if msg.Type != 3 {
+				log.Println("消息类型码不合法...")
+			}
+			goWork(msg.IsWorking, msg.UseCores)
+		} else {
+			time.Sleep(3 * time.Second)
 		}
-		// fmt.Println(string(message))
-		//处理收到的消息
-		var msg WsMessage
-		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Println("消息解码错误: ", err)
-		}
-		goWork(msg.IsWorking, msg.UseCores)
 	}
 }
 
@@ -174,6 +183,7 @@ func sendHeartBeat() bool {
 		Cores:     cores,
 		TotalCPU:  totalCPU,
 		AllCPU:    allCPU,
+		IsWorking: isWorking,
 		CaledNums: caledNums,
 	}
 	if !isWorking {
@@ -223,7 +233,7 @@ func goWork(shouldWork bool, shouldUseCores int) {
 
 }
 
-// http函数，向主机发送自己计算获得的目标值
+// 向主机发送自己计算获得的目标值
 func sendRetMD5(ret string) bool {
 	msg := WsMessage{
 		Type:   2,

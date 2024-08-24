@@ -62,7 +62,7 @@ func frt_gowork(c *gin.Context) {
 	}
 
 	//向master请求
-	if err := GoWorkOrNot(id, usecores, isworking); err != nil {
+	if ok := GoWorkOrNot(id, usecores, isworking); !ok {
 		log.Println("3452error:", err)
 		c.JSON(400, gin.H{"msg": "3452error"})
 	}

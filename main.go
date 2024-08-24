@@ -2,7 +2,6 @@ package main
 
 import (
 	"dis_control/routers"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -30,7 +29,7 @@ func main() {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatal(err)
 	}
-	host_port := viper.GetInt("host_port")
+	// host_port := viper.GetInt("host_port")
 
 	r := gin.Default()
 
@@ -41,7 +40,7 @@ func main() {
 		r.GET("/", littleTest)
 		routers.InitMaster(r)
 		routers.InitFront(r)
-		r.Run(fmt.Sprintf(":%v", host_port))
+		r.Run(":8000")
 	} else {
 		log.Println("默认以工人节点身份启动")
 		routers.InitWorker()
