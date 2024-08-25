@@ -17,7 +17,6 @@ var allWorkerNums int = 0                      //记录所有已发现的工人�
 var workingNums int = 0                        //记录正在工作的工人数量
 var connects = make(map[string]nodeStatus)     //键为工人的id，值为其对应的结构体信息
 var wsConns = make(map[string]*websocket.Conn) //键为工人的id，值为其对应的webSocket连接对象
-var expiredTime int = 8                        //代表多少秒工人未更新心跳则连接过期
 var finalSuccess bool = false
 var result []string
 
@@ -35,15 +34,13 @@ type nodeStatus struct {
 	AllCPU      []float64 `json:"allCPU"`
 	IsWorking   bool      `json:"isWorking"`
 	UpdatedAt   time.Time `json:"updated_at"` // 时间字段通常可以自动序列化为ISO 8601格式
-	StartWorkAt time.Time `json:"startWork_at"`
+	StartWorkAt string    `json:"startWork_at"`
 	CaledNums   int       `json:"caledNums"`
 }
 
 func InitMaster(r *gin.Engine) {
 	mst := r.Group("/master")
 	mst.GET("/myws", myWS)
-	mst.POST("/heartbeat", heartBeat)
-	mst.POST("/sendret", sendRet)
 
 	// connects = make(map[string]nodeStatus)
 
@@ -84,6 +81,7 @@ func myWS(c *gin.Context) {
 					tempNode.AllCPU = msg.AllCPU
 					tempNode.CaledNums = msg.CaledNums
 					tempNode.IsWorking = msg.IsWorking
+					tempNode.StartWorkAt = msg.StartWorkAt
 					connects[id] = tempNode
 				} else {
 					//向connects中添加一个新的对象
@@ -100,6 +98,7 @@ func myWS(c *gin.Context) {
 				item_ret := fmt.Sprintf("%v计算出了结果：%v", connects[id].Name, msg.Result)
 				result = append(result, item_ret)
 				finalSuccess = true
+				Mst_batchCtrl(0)
 			} else {
 				log.Println("消息类型码不合法...")
 			}
@@ -115,62 +114,10 @@ func workerMsgExist(id string) (nodeStatus, bool) {
 
 // 辅助函数：根据id删除两个map中的信息，并更新相关全局变量
 func memberOut(id string) {
+	log.Printf("工人 %v 下线...", connects[id].Name)
 	delete(connects, id)
 	delete(wsConns, id)
 	allWorkerNums--
-}
-
-// 协程：持续检查每个节点的updated_at时间，若超过指定时间则删除其对应的连接。并更新工作节点数
-func checkHeart() {
-	for {
-		tempWorking := 0
-		for key, value := range connects {
-			diff := time.Since(value.UpdatedAt)
-			if diff >= time.Duration(expiredTime)*time.Second {
-				delete(connects, key)
-				log.Printf("工人 %v 下线\n", value.Name)
-				allWorkerNums--
-			}
-			if value.IsWorking {
-				tempWorking++
-			}
-		}
-		workingNums = tempWorking
-
-		if finalSuccess {
-			log.Printf("!!!! This is result [%v] !!!:", result)
-		}
-		time.Sleep(2 * time.Second)
-	}
-}
-
-// 路由函数：heartBeat，工人需要通过该接口每隔2s向主机发送自己的信息
-// 包括id，isWorking，CPU状态信息
-func heartBeat(c *gin.Context) {
-	var payLoad struct {
-		Id        string    `json:"id"`
-		IsWorking bool      `json:"isworking"`
-		TotalCPU  float64   `json:"totalcpu"`
-		AllCPU    []float64 `json:"allcpu"`
-		CaledNums int       `json:"calednums"`
-	}
-	err := c.ShouldBindJSON(&payLoad) //将请求中编码后的json数据解析到payload上
-	if err != nil {
-		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
-	}
-
-	tempNode, ok := connects[payLoad.Id] // 因为map映射无法直接操作结构体，因此需要用一个temp中转一下
-	if ok {
-		tempNode.TotalCPU = payLoad.TotalCPU
-		tempNode.AllCPU = payLoad.AllCPU
-		tempNode.UpdatedAt = time.Now()
-		tempNode.CaledNums = payLoad.CaledNums
-
-		connects[payLoad.Id] = tempNode
-		c.JSON(200, gin.H{"status": 200, "msg": "success"})
-	} else {
-		c.JSON(400, gin.H{"status": 400, "msg": "you have expired...建议重启程序"})
-	}
 }
 
 // 根据ID向工人发送开始或停止工作指令
@@ -192,29 +139,6 @@ func GoWorkOrNot(id string, useCores int, flag bool) bool {
 	return true
 }
 
-// 路由函数：接收工人发送的md5目标值，同时停止所有工人的工作
-func sendRet(c *gin.Context) {
-	var myLoad struct {
-		Id  string `json:"id"`
-		Ret string `json:"ret"`
-	}
-	if err := c.ShouldBindJSON(&myLoad); err != nil {
-		c.JSON(400, gin.H{"status": 400, "msg": err.Error()})
-	}
-	tempNode, ok := connects[myLoad.Id]
-	//停止所有工人的计算工作
-	finalSuccess = true
-	var item_ret string
-	if ok {
-		item_ret = tempNode.Name + " !!!!!!!!!!!caled the result: " + myLoad.Ret
-	} else {
-		item_ret = "未知用户 " + " !!!!!!!!!!!caled the result: " + myLoad.Ret
-	}
-	result = append(result, item_ret)
-	Mst_batchCtrl(0)
-	c.JSON(200, gin.H{"status": 200, "msg": "Congratulations !!!"})
-}
-
 // 辅助函数：向前端接口返回切片形式的已连接节点信息
 func GetMainData() (int, int, bool, []string, []nodeStatus) {
 	var mySlc []nodeStatus
@@ -234,13 +158,16 @@ func GetMainData() (int, int, bool, []string, []nodeStatus) {
 func Mst_batchCtrl(slt int) error {
 	if slt == 0 {
 		for key := range connects {
+			log.Println("停止所有节点工作")
 			GoWorkOrNot(key, 0, false)
 		}
 	} else if slt == 1 {
+		log.Println("全部单核运行")
 		for key := range connects {
 			GoWorkOrNot(key, 1, true)
 		}
 	} else if slt == 2 {
+		log.Println("全部满载运行")
 		for key, value := range connects {
 			fullCore := value.Cores
 			GoWorkOrNot(key, fullCore, true)

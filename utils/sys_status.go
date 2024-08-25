@@ -15,3 +15,9 @@ func Get_CPU() (float64, []float64) {
 	// }
 	return totalCPU[0], allCPU
 }
+
+// 获取时间并处理为标准形式的string
+func Get_NormTime() string {
+	this := time.Now().Format("2006-01-02 15:04:05")
+	return this
+}

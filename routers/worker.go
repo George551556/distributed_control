@@ -14,18 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-/*
-工人要有一个变量宣称自己是否处理连接状态，非连接状态每4s进行一次连接请求，连接成功后3s更新一次心跳
-工人自己要有自己的id，
-*/
-
 // 声明全局变量
 var (
 	name         string
-	ip           string
-	host_address string
 	host         string
-	id           string = ""
 	cores        int
 	useCores     int
 	totalCPU     float64
@@ -33,7 +25,8 @@ var (
 	isConnected  bool = false
 	conn         *websocket.Conn
 	u            url.URL
-	isWorking    bool     = false
+	isWorking    bool = false
+	startWork_at string
 	caled_signal chan int     //每进行一个单位的计算则向该通道写入一个 1
 	caledNums    int      = 0 //记录本次开始工作总共的工作量，停止工作则清零
 	chanStartSig chan int     //每次开始工作时，向该通道写入一个1，防止对isWorking变量的重复读取
@@ -52,7 +45,7 @@ type WsMessage struct {
 	AllCPU      []float64 `json:"allcpu"`
 	IsWorking   bool      `json:"isworking"`
 	UseCores    int       `json:"usecores"`
-	StartWorkAt time.Time `json:"startwork_at"`
+	StartWorkAt string    `json:"startwork_at"`
 	CaledNums   int       `json:"calednums"`
 	Result      string    `json:"result"`
 }
@@ -66,8 +59,6 @@ func InitWorker() {
 	caled_signal = make(chan int, 10)
 	chanStartSig = make(chan int, 2)
 	name = viper.GetString("name")
-	ip = fmt.Sprintf("http://%v:%v", viper.GetString("local_address"), viper.GetInt("local_port"))
-	host_address = fmt.Sprintf("http://%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
 	host = fmt.Sprintf("%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
 	u = url.URL{Scheme: "ws", Host: host, Path: "/master/myws"}
 	cores = viper.GetInt("cores")
@@ -76,7 +67,9 @@ func InitWorker() {
 	go func() {
 		for {
 			if !isConnected {
-				connect_host()
+				if connect_host() {
+					continue
+				}
 				time.Sleep(4 * time.Second)
 			} else {
 				//获取本机CPU信息，发送heartbeat
@@ -85,6 +78,7 @@ func InitWorker() {
 					conn.Close()
 					isConnected = false
 				}
+				log.Println("heartBeat success...")
 				time.Sleep(time.Second)
 			}
 		}
@@ -111,11 +105,6 @@ func InitWorker() {
 					for {
 						nums++
 						ret, flag := utils.Single_cal(r)
-						if nums == 20000000-1000000 {
-							flag = true
-							ret = "hahah just kidding!!!"
-							fmt.Printf("ret: %v\n", ret)
-						}
 						if flag {
 							//向主机发送消息，自己计算出了目标值
 							sendRetMD5(ret)
@@ -178,13 +167,14 @@ func connect_host() bool {
 // 发送心跳状态：名称，isWorking，CPU状态信息，已有工作量
 func sendHeartBeat() bool {
 	msg := WsMessage{
-		Type:      1,
-		Name:      name,
-		Cores:     cores,
-		TotalCPU:  totalCPU,
-		AllCPU:    allCPU,
-		IsWorking: isWorking,
-		CaledNums: caledNums,
+		Type:        1,
+		Name:        name,
+		Cores:       cores,
+		StartWorkAt: startWork_at,
+		TotalCPU:    totalCPU,
+		AllCPU:      allCPU,
+		IsWorking:   isWorking,
+		CaledNums:   caledNums,
 	}
 	if !isWorking {
 		//若为非工作状态则将CPU信息隐藏
@@ -193,6 +183,7 @@ func sendHeartBeat() bool {
 			msg.AllCPU[i] = 0
 		}
 		msg.CaledNums = 0
+		msg.StartWorkAt = "0001-01-01 00:00:00"
 	}
 	jsonData, err := json.Marshal(msg)
 	if err != nil {
@@ -223,9 +214,11 @@ func goWork(shouldWork bool, shouldUseCores int) {
 		isWorking = shouldWork
 		if isWorking {
 			msg = "success: start work!!!"
+			startWork_at = utils.Get_NormTime()
 			chanStartSig <- 1
 		} else {
 			msg = "success: stop work!!!"
+			startWork_at = "0001-01-01 00:00:00"
 			caledNums = 0
 		}
 	}
