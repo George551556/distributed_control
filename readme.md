@@ -19,28 +19,16 @@
 
 
 ### 使用说明
-
-1. 修改config.json文件，修改master所在ip和端口host_address、host_port，修改本机所在的local_address, local_ip
-
-2. 启动master节点，后加参数0即可
-
+启动master节点，后加参数0即可，示例：
    ```bash
    ./run_win.exe 0
    ./run_linux 0  
    ```
 
-   ```bash
-   # 后台
-   nohup ./run_linux 0 >>log.log 2>&1 &
-   ```
-
-   
-
-   启动worker节点，不加任何参数
-
+启动worker节点，不加任何参数
    ```bash
    ./run_win.exe
    ./run_linux
    ```
-
+   需要修改config.json文件相关信息[config.json](./config.json)
    
