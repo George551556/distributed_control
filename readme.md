@@ -19,16 +19,26 @@
 
 
 ### 使用说明
-启动master节点，后加参数0即可，示例：
+- 启动master节点，后加参数0即可，示例：
    ```bash
    ./run_win.exe 0
    ./run_linux 0  
    ```
 
-启动worker节点，不加任何参数
+- 启动worker节点
+  1. 首先编辑`config.json`文件，格式如下：
+   host为要远程连接的主机的地址，修改cores值为该工人CPU核心数量，name给本机一个让人易明白的名字
+   ```json
+   {
+      "host_address":"lzh.zzdx.gay", 
+      "host_port":55156,
+      "cores":8,
+      "name":"张三的XX机"
+   }
+   ```
+   2. 直接执行命令，不加任何参数
    ```bash
    ./run_win.exe
    ./run_linux
    ```
-   需要修改config.json文件相关信息[config.json](./config.json)
    
