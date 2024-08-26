@@ -51,6 +51,12 @@
     white-space: pre-wrap; /* 允许保留空白符序列，但是正常的换行仍然可以发生 */
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
   }
+  .cpu-cell{
+    min-width: 80px;
+    display: inline-block;
+    white-space: pre-wrap; /* 允许保留空白符序列，但是正常的换行仍然可以发生 */
+    overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
+  }
 </style>
 </head>
 <body>
@@ -82,7 +88,7 @@ function renderData(data) {
     row.className = 'tooltip';
     row.innerHTML = `
       <span class="name-cell">${item.name}</span> |
-      <span>${(item.totalCPU * 100).toFixed(2)}%</span> |
+      <span class="cpu-cell">${(item.totalCPU * 100).toFixed(2)}%</span> |
       <span class="core-cell">${item.cores} cores</span> |
       <span>${item.isWorking ? '工作中' : '休息'}</span> |
       <span>${item.startWork_at}</span> |
