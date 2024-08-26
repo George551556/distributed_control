@@ -167,7 +167,7 @@ function initPage() {
     .then(response => response.json())
     .then(data => {
         // console.log('lkz:', data.data)
-        document.getElementById('date-time').textContent = data['date-time'] +'---| |---  '+'工作人数/总数：'+ data['working']+'/'+data['worker'];
+        document.getElementById('date-time').textContent = data['date-time'] +'---| |---  '+'工人总数：'+ data['worker'];
         const finalSuccess = data['finalsuccess'];
         const result = data['result'];
 

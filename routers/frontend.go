@@ -29,11 +29,10 @@ func index(c *gin.Context) {
 // 路由函数：返回主要数据
 func returnData(c *gin.Context) {
 	time := fmt.Sprintf("刷新时间：%v", time.Now().Format("2006-01-02 15:04:05"))
-	workerNum, workingNum, finalSuccess, result, data := GetMainData()
+	workerNum, finalSuccess, result, data := GetMainData()
 	c.JSON(200, gin.H{
 		"date-time":    time,
 		"worker":       workerNum,
-		"working":      workingNum,
 		"finalsuccess": finalSuccess,
 		"result":       result,
 		"data":         data,

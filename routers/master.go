@@ -14,7 +14,6 @@ import (
 )
 
 var allWorkerNums int = 0                      //记录所有已发现的工人数量
-var workingNums int = 0                        //记录正在工作的工人数量
 var connects = make(map[string]nodeStatus)     //键为工人的id，值为其对应的结构体信息
 var wsConns = make(map[string]*websocket.Conn) //键为工人的id，值为其对应的webSocket连接对象
 var finalSuccess bool = false
@@ -140,17 +139,21 @@ func GoWorkOrNot(id string, useCores int, flag bool) bool {
 }
 
 // 辅助函数：向前端接口返回切片形式的已连接节点信息
-func GetMainData() (int, int, bool, []string, []nodeStatus) {
+func GetMainData() (int, bool, []string, []nodeStatus) {
 	var mySlc []nodeStatus
 	for _, value := range connects {
 		mySlc = append(mySlc, value)
 	}
 	//对切片按isWorking排序
 	sort.Slice(mySlc, func(i int, j int) bool {
-		return mySlc[i].IsWorking && !mySlc[j].IsWorking
+		if mySlc[i].IsWorking != mySlc[j].IsWorking {
+			return mySlc[i].IsWorking && !mySlc[j].IsWorking
+		} else {
+			return mySlc[i].CaledNums > mySlc[j].CaledNums
+		}
 	})
 
-	return allWorkerNums, workingNums, finalSuccess, result, mySlc
+	return allWorkerNums, finalSuccess, result, mySlc
 }
 
 // 辅助函数：根据参数slt，批量操作所有工作节点
