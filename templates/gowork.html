@@ -47,16 +47,66 @@
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
   }
   .core-cell{
-    min-width: 90px;
+    min-width: 110px;
     display: inline-block;
     white-space: pre-wrap; /* 允许保留空白符序列，但是正常的换行仍然可以发生 */
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
   }
   .cpu-cell{
-    min-width: 80px;
+    min-width: 75px;
     display: inline-block;
     white-space: pre-wrap; /* 允许保留空白符序列，但是正常的换行仍然可以发生 */
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background-color: #2196F3;
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(26px);
+  }
+  #data-render.disabled {
+    pointer-events: none;
+    opacity: 0.5;
+    background-color: #f0f0f0;
   }
 </style>
 </head>
@@ -68,6 +118,11 @@
   <button onclick="batchControl(2)">全满载运行</button>
   <button onclick="batchControl(0)" style="background-color: red;">全部停止</button>
   <button onclick="initPage()" style="background-color: green;font-size: 28px;">刷新</button>
+  自动刷新:
+  <label class="switch">
+    <input type="checkbox" id="refreshToggle">
+    <span class="slider"></span>
+  </label>
   <hr>
   选择运行核数：
   <select id="core-selector">
@@ -79,9 +134,10 @@
   <div id="data-render"></div>
 </div>
 <script>
+  let refreshInterval;
+  const dataRender = document.getElementById('data-render');
 // Function to render data
 function renderData(data) {
-  const dataRender = document.getElementById('data-render');
   dataRender.innerHTML = ''; // Clear previous content
   data.forEach(item => {
     const row = document.createElement('div');
@@ -93,9 +149,9 @@ function renderData(data) {
       <span class="core-cell">${item.isWorking ? '工作中' : '休息'}</span> |
       <span>${item.startWork_at}</span> |
       <span class="core-cell">工作量：${item.caledNums} 次</span>
-      <button onclick="startWorkOrNot('${item.id}', this, true)">开始工作</button>
-      <button onclick="startWorkOrNot('${item.id}', this, false)">停止工作</button>
-      <button onclick="caledNumClear('${item.id}')">工作量清零</button>
+      <button class="itemCtrlBtn" onclick="startWorkOrNot('${item.id}', this, true)">开始工作</button>
+      <button class="itemCtrlBtn" onclick="startWorkOrNot('${item.id}', this, false)">停止工作</button>
+      <button class="itemCtrlBtn" onclick="caledNumClear('${item.id}')">工作量清零</button>
       <span class="tooltiptext">${item.id}<br>${item.allCPU.join(', ')}</span>
     `;
     dataRender.appendChild(row);
@@ -198,10 +254,38 @@ function initPage() {
         }
 
         renderData(data['data']);
+        if (document.getElementById('refreshToggle').checked){
+          isUseCtrlBtn(1);
+        }
     })
     .catch(error => {
       console.error('Error fetching data:', error);
     });
+}
+
+//监听是否开启自动刷新
+document.getElementById('refreshToggle').addEventListener('change', function() {
+  if (this.checked) {
+    // 开启自动刷新
+    refreshInterval = setInterval(initPage, 1500);
+    isUseCtrlBtn(1);
+  } else {
+    // 关闭自动刷新
+    clearInterval(refreshInterval);
+    isUseCtrlBtn(0);
+  }
+});
+
+function isUseCtrlBtn(slt){
+  if (slt===1){
+    document.querySelectorAll('.itemCtrlBtn').forEach(button=>{
+      button.disabled = true;
+    })
+  }else{
+    document.querySelectorAll('.itemCtrlBtn').forEach(button=>{
+      button.disabled = false;
+    })
+  }
 }
 
 // Call initPage on page load

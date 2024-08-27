@@ -28,7 +28,7 @@
 
 - 启动worker节点
   1. 首先在根目录下创建`config.json`文件，格式如下：
-   > host为要远程连接的主机的地址，修改cores值为该工人CPU核心数量，name给本机一个让人易明白的名字
+   > host为要远程连接的主机的地址和端口，name给本机一个让人易明白的名字
    ```json
    {
       "host_address":"lzh.zzdx.gay", 
