@@ -61,7 +61,8 @@ func InitWorker() {
 	name = viper.GetString("name")
 	host = fmt.Sprintf("%v:%v", viper.GetString("host_address"), viper.GetInt("host_port"))
 	u = url.URL{Scheme: "ws", Host: host, Path: "/master/myws"}
-	cores = viper.GetInt("cores")
+	totalCPU, allCPU = utils.Get_CPU()
+	cores = len(allCPU)
 
 	//协程：持续请求连接以及发送心跳
 	go func() {
@@ -135,16 +136,23 @@ func InitWorker() {
 				conn.Close()
 				isConnected = false
 			}
-			// fmt.Println(string(message))
 			//处理收到的消息
 			var msg WsMessage
 			if err := json.Unmarshal(message, &msg); err != nil {
 				log.Println("消息解码错误: ", err)
 			}
-			if msg.Type != 3 {
-				log.Println("消息类型码不合法...")
+			switch msg.Type {
+			case 3:
+				goWork(msg.IsWorking, msg.UseCores)
+			case 4:
+				caledNums = 0
+				log.Println("工作量清零")
+			default:
+				log.Println("未定义的消息码：", msg.Type)
 			}
-			goWork(msg.IsWorking, msg.UseCores)
+			// if msg.Type != 3 {
+			// 	log.Println("消息类型码不合法...")
+			// }
 		} else {
 			time.Sleep(3 * time.Second)
 		}
@@ -173,17 +181,19 @@ func sendHeartBeat() bool {
 		StartWorkAt: startWork_at,
 		TotalCPU:    totalCPU,
 		AllCPU:      allCPU,
+		UseCores:    useCores,
 		IsWorking:   isWorking,
 		CaledNums:   caledNums,
 	}
 	if !isWorking {
-		//若为非工作状态则将CPU信息隐藏
+		//若为非工作状态则处理部分信息的可见性
 		msg.TotalCPU = 0
-		for i := range msg.AllCPU {
-			msg.AllCPU[i] = 0
-		}
+		// for i := range msg.AllCPU {
+		// 	msg.AllCPU[i] = 0
+		// }
 		msg.CaledNums = 0
 		msg.StartWorkAt = "0001-01-01 00:00:00"
+		msg.UseCores = 0
 	}
 	jsonData, err := json.Marshal(msg)
 	if err != nil {
@@ -202,7 +212,6 @@ func sendHeartBeat() bool {
 // 参数：开始或停止工作的指令，使用核数
 func goWork(shouldWork bool, shouldUseCores int) {
 	//准备开始或者停止计算
-	useCores = shouldUseCores
 	var msg string
 	if isWorking == shouldWork {
 		if isWorking {
@@ -211,6 +220,7 @@ func goWork(shouldWork bool, shouldUseCores int) {
 			msg = "is still sleeping..."
 		}
 	} else {
+		useCores = shouldUseCores
 		isWorking = shouldWork
 		if isWorking {
 			msg = "success: start work!!!"
@@ -219,7 +229,6 @@ func goWork(shouldWork bool, shouldUseCores int) {
 		} else {
 			msg = "success: stop work!!!"
 			startWork_at = "0001-01-01 00:00:00"
-			caledNums = 0
 		}
 	}
 	log.Println(msg)

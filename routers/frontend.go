@@ -18,6 +18,7 @@ func InitFront(r *gin.Engine) {
 	front.GET("/getmaindata", returnData)
 	front.POST("/goworkornot", frt_gowork)
 	front.POST("/batchctrl", batchControl)
+	front.POST("/calnumclear", caledNumClear)
 
 }
 
@@ -81,4 +82,16 @@ func batchControl(c *gin.Context) {
 		c.JSON(400, gin.H{"msg": err.Error()})
 	}
 	c.JSON(200, gin.H{})
+}
+
+// 路由函数：根据id清零对应工人的工作量
+func caledNumClear(c *gin.Context) {
+	log.Println("alwkdj")
+	id := c.PostForm("id")
+	flag := Mst_calNumClear(id)
+	if flag {
+		c.JSON(200, gin.H{})
+	} else {
+		c.JSON(400, gin.H{"msg": "发送清零指令失败"})
+	}
 }

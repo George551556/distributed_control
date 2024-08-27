@@ -15,6 +15,7 @@
     pointer-events: none;
   }
   .tooltip {
+    margin-top: 9px;
     position: relative;
     display: inline-block;
     border-bottom: 1px dotted black;
@@ -46,7 +47,7 @@
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
   }
   .core-cell{
-    min-width: 70px;
+    min-width: 90px;
     display: inline-block;
     white-space: pre-wrap; /* 允许保留空白符序列，但是正常的换行仍然可以发生 */
     overflow-wrap: break-word; /* 在长单词或URL内部进行换行 */
@@ -63,16 +64,15 @@
 <div id="main-content">
   <div id="result"></div>
   <div id="date-time"></div>
+  <button onclick="batchControl(1)">全单核运行</button>
+  <button onclick="batchControl(2)">全满载运行</button>
+  <button onclick="batchControl(0)" style="background-color: red;">全部停止</button>
+  <button onclick="initPage()" style="background-color: green;font-size: 28px;">刷新</button>
+  <hr>
   选择运行核数：
   <select id="core-selector">
     <!-- Options for core-selector will be populated in JavaScript -->
   </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <button onclick="batchControl(1)">全单核运行</button>
-  <button onclick="batchControl(2)">全满载运行</button>
-  <button onclick="batchControl(0)" style="background-color: red;">全部停止</button>
-  <button onclick="initPage()" style="background-color: green;">刷新</button>
-  <hr>
-  <br>
   <hr>
   <h3>节点详情</h3>
   <hr>
@@ -88,13 +88,14 @@ function renderData(data) {
     row.className = 'tooltip';
     row.innerHTML = `
       <span class="name-cell">${item.name}</span> |
-      <span class="cpu-cell">${(item.totalCPU * 100).toFixed(2)}%</span> |
-      <span class="core-cell">${item.cores} cores</span> |
-      <span>${item.isWorking ? '工作中' : '休息'}</span> |
+      <span class="cpu-cell">${(item.totalCPU).toFixed(2)}%</span> |
+      <span class="core-cell">${item.usecores}/ ${item.cores} cores</span> |
+      <span class="core-cell">${item.isWorking ? '工作中' : '休息'}</span> |
       <span>${item.startWork_at}</span> |
-      <span>工作量：${item.caledNums} 次</span>
+      <span class="core-cell">工作量：${item.caledNums} 次</span>
       <button onclick="startWorkOrNot('${item.id}', this, true)">开始工作</button>
       <button onclick="startWorkOrNot('${item.id}', this, false)">停止工作</button>
+      <button onclick="caledNumClear('${item.id}')">工作量清零</button>
       <span class="tooltiptext">${item.id}<br>${item.allCPU.join(', ')}</span>
     `;
     dataRender.appendChild(row);
@@ -161,12 +162,31 @@ function startWorkOrNot(id, button, isWorking) {
     button.disabled = true;
 }
 
+//对id对应的工人进行工作量清零
+function caledNumClear(id){
+  const formData = new FormData();
+  formData.append('id', id);
+  fetch('/front/calnumclear', {
+    method:'post',
+    body:formData,
+  })
+  .then(response=>{
+    if (response.status === 200){
+      window.location.reload();
+    }else{
+      console.error('caledNumClear not 200 Error:', response.status, response.data['msg'])
+    }
+  })
+  .catch((error) => {
+      console.error('Error:', error);
+  });
+}
+
 // Function to initialize the page and fetch data
 function initPage() {
   fetch('/front/getmaindata')
     .then(response => response.json())
     .then(data => {
-        // console.log('lkz:', data.data)
         document.getElementById('date-time').textContent = data['date-time'] +'---| |---  '+'工人总数：'+ data['worker'];
         const finalSuccess = data['finalsuccess'];
         const result = data['result'];

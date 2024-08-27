@@ -34,6 +34,7 @@ type nodeStatus struct {
 	IsWorking   bool      `json:"isWorking"`
 	UpdatedAt   time.Time `json:"updated_at"` // 时间字段通常可以自动序列化为ISO 8601格式
 	StartWorkAt string    `json:"startWork_at"`
+	UseCores    int       `json:"usecores"`
 	CaledNums   int       `json:"caledNums"`
 }
 
@@ -81,6 +82,7 @@ func myWS(c *gin.Context) {
 					tempNode.CaledNums = msg.CaledNums
 					tempNode.IsWorking = msg.IsWorking
 					tempNode.StartWorkAt = msg.StartWorkAt
+					tempNode.UseCores = msg.UseCores
 					connects[id] = tempNode
 				} else {
 					//向connects中添加一个新的对象
@@ -179,4 +181,29 @@ func Mst_batchCtrl(slt int) error {
 		return fmt.Errorf("slt参数数值不合法")
 	}
 	return nil
+}
+
+// 辅助函数：根据传入的id向工人节点发送消息，清零其工作量
+func Mst_calNumClear(id string) bool {
+	tempNode, ok := workerMsgExist(id)
+	if !ok {
+		log.Println("Mst_calNumClear error: worker disconnected...")
+		return true
+	}
+	if tempNode.CaledNums == 0 {
+		return true
+	}
+	msg := WsMessage{
+		Type: 4,
+	}
+	jsonData, err := json.Marshal(msg)
+	if err != nil {
+		log.Println("Mst_calNumClear 消息编码失败: ", err)
+		return false
+	}
+	if err := wsConns[id].WriteMessage(websocket.TextMessage, jsonData); err != nil {
+		log.Println("Mst_calNumClear 消息发送失败: ", err)
+		return false
+	}
+	return true
 }
