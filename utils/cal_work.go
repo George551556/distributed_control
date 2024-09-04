@@ -10,7 +10,8 @@ import (
 )
 
 var length int = 32
-var charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+var charset = "abcdef0123456789"
+var lth int = 16
 
 func Multi_cal(core int) {
 	// rand.Seed(time.Now().UnixNano())
@@ -44,7 +45,7 @@ func Multi_cal(core int) {
 func Single_cal(r *rand.Rand) (string, bool) {
 	s0 := make([]byte, length)
 	for i := 0; i < length; i++ {
-		s0[i] = charset[r.Int()%len(charset)]
+		s0[i] = charset[r.Int()%lth]
 	}
 	s := string(s0)
 	s1 := Str2md5(s)
