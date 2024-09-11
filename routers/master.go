@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,8 @@ var connects = make(map[string]nodeStatus)     //键为工人的id，值为其�
 var wsConns = make(map[string]*websocket.Conn) //键为工人的id，值为其对应的webSocket连接对象
 var finalSuccess bool = false
 var result []string
+var mu_cons sync.Mutex
+var mu_wscons sync.Mutex
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -56,7 +59,9 @@ func myWS(c *gin.Context) {
 	// defer ws.Close()
 	//保存连接对象
 	id := utils.GetRandom_md5()
+	mu_wscons.Lock()
 	wsConns[id] = ws
+	mu_wscons.Unlock()
 	//开协程持续接收消息
 	go func() {
 		for {
@@ -83,7 +88,9 @@ func myWS(c *gin.Context) {
 					tempNode.IsWorking = msg.IsWorking
 					tempNode.StartWorkAt = msg.StartWorkAt
 					tempNode.UseCores = msg.UseCores
+					mu_cons.Lock()
 					connects[id] = tempNode
+					mu_cons.Unlock()
 				} else {
 					//向connects中添加一个新的对象
 					newNode := nodeStatus{
@@ -91,7 +98,9 @@ func myWS(c *gin.Context) {
 						Name:  msg.Name,
 						Cores: msg.Cores,
 					}
+					mu_cons.Lock()
 					connects[id] = newNode
+					mu_cons.Unlock()
 					log.Printf("工人 %v 上线\n", msg.Name)
 					allWorkerNums++
 				}
@@ -116,8 +125,12 @@ func workerMsgExist(id string) (nodeStatus, bool) {
 // 辅助函数：根据id删除两个map中的信息，并更新相关全局变量
 func memberOut(id string) {
 	log.Printf("工人 %v 下线...", connects[id].Name)
+	mu_cons.Lock()
 	delete(connects, id)
+	mu_cons.Unlock()
+	mu_wscons.Lock()
 	delete(wsConns, id)
+	mu_wscons.Unlock()
 	allWorkerNums--
 }
 
