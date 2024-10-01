@@ -123,6 +123,8 @@
     <input type="checkbox" id="refreshToggle">
     <span class="slider"></span>
   </label>
+  <button id="download_1">下载exe</button>
+  <button id="download_2">下载config</button>
   <hr>
   选择运行核数：
   <select id="core-selector">
@@ -286,7 +288,55 @@ function isUseCtrlBtn(slt){
       button.disabled = false;
     })
   }
-}
+};
+
+//下载按钮的响应函数
+document.getElementById('download_1').addEventListener('click', function(){
+  fetch('/static/exe', { // 使用你实际的API路径
+    method: 'GET',
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.blob(); // 将响应转换为Blob
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob); // 创建Blob的URL
+      const a = document.createElement('a'); // 创建一个<a>元素
+      a.href = url;
+      a.download = 'run-win.exe'; // 设置下载的文件名
+      document.body.appendChild(a);
+      a.click(); // 触发点击下载
+      a.remove(); // 移除元素
+    })
+    .catch(error => {
+      console.error('There was an error!', error);
+    });
+});
+document.getElementById('download_2').addEventListener('click', function(){
+  fetch('/static/config', { // 使用你实际的API路径
+    method: 'GET',
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.blob(); // 将响应转换为Blob
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob); // 创建Blob的URL
+      const a = document.createElement('a'); // 创建一个<a>元素
+      a.href = url;
+      a.download = 'config.json'; // 设置下载的文件名
+      document.body.appendChild(a);
+      a.click(); // 触发点击下载
+      a.remove(); // 移除元素
+    })
+    .catch(error => {
+      console.error('There was an error!', error);
+    });
+});
 
 // Call initPage on page load
 initPage();

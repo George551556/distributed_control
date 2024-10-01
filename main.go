@@ -38,6 +38,8 @@ func main() {
 		log.Println("以主节点身份启动")
 		r.LoadHTMLGlob("templates/*")
 		r.GET("/", littleTest)
+		r.GET("/static/exe", getEXE)
+		r.GET("/static/config", getConfig)
 		routers.InitMaster(r)
 		routers.InitFront(r)
 		r.Run(":8000")
@@ -50,4 +52,14 @@ func main() {
 
 func littleTest(c *gin.Context) {
 	c.HTML(200, "index.html", gin.H{"msg": "123"})
+}
+
+func getEXE(c *gin.Context) {
+	c.Header("Content-Disposition", "attachment; filename=run-win.exe")
+	c.File("./static/run-win.exe")
+}
+
+func getConfig(c *gin.Context) {
+	c.Header("Content-Disposition", "attachment; filename=config.json")
+	c.File("./static/config.json")
 }
